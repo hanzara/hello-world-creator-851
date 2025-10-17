@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 import { useToast } from '@/hooks/use-toast';
+import { useWithdrawals } from '@/hooks/useWithdrawals';
 
 interface WithdrawalsPanelProps {
   userWallets: {
@@ -26,7 +27,7 @@ interface WithdrawalsPanelProps {
 const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRole }) => {
   const [selectedWallet, setSelectedWallet] = useState<any>(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawMethod, setWithdrawMethod] = useState<'mpesa' | 'bank' | 'card'>('mpesa');
+  const [withdrawMethod, setWithdrawMethod] = useState<'mpesa' | 'bank' | 'card' | 'airtel'>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [bankDetails, setBankDetails] = useState({ accountNumber: '', bankName: '', branch: '' });
   const [pin, setPin] = useState('');
@@ -34,46 +35,7 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-
-  // Mock recent withdrawals data
-  const recentWithdrawals = [
-    {
-      id: 'wd-001',
-      amount: 25000,
-      method: 'mpesa',
-      destination: '254712345678',
-      status: 'completed',
-      date: '2024-01-15',
-      fee: 25,
-      reference: 'WTH1234567890'
-    },
-    {
-      id: 'wd-002',
-      amount: 50000,
-      method: 'bank',
-      destination: 'KCB Bank - 1234567890',
-      status: 'pending',
-      date: '2024-01-14',
-      fee: 50,
-      reference: 'WTH0987654321'
-    },
-    {
-      id: 'wd-003',
-      amount: 15000,
-      method: 'mpesa',
-      destination: '254723456789',
-      status: 'completed',
-      date: '2024-01-12',
-      fee: 15,
-      reference: 'WTH5678901234'
-    }
-  ];
-
-  const withdrawalLimits = {
-    daily: { used: 45000, limit: 100000 },
-    weekly: { used: 120000, limit: 300000 },
-    monthly: { used: 450000, limit: 1000000 }
-  };
+  const { withdrawals, limits, calculateFee: calcFee, createWithdrawal, isCreating } = useWithdrawals();
 
   const getWalletStatus = (wallet: any) => {
     if (wallet.type === 'chama_view_locked') {
@@ -91,24 +53,6 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
     };
   };
 
-  const calculateFee = (amount: number, method: string) => {
-    switch (method) {
-      case 'mpesa':
-        if (amount <= 100) return 0;
-        if (amount <= 2500) return 15;
-        if (amount <= 3500) return 25;
-        if (amount <= 5000) return 30;
-        if (amount <= 7500) return 45;
-        if (amount <= 10000) return 50;
-        return Math.max(50, Math.floor(amount * 0.005));
-      case 'bank':
-        return Math.max(25, Math.floor(amount * 0.001));
-      case 'card':
-        return Math.floor(amount * 0.025);
-      default:
-        return 0;
-    }
-  };
 
   const handleWithdrawal = async () => {
     if (!selectedWallet || !withdrawAmount || !pin) {
@@ -142,7 +86,7 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
     }
 
     // Check daily limit
-    const remainingDaily = withdrawalLimits.daily.limit - withdrawalLimits.daily.used;
+    const remainingDaily = limits.daily.limit - limits.daily.used;
     if (amount > remainingDaily) {
       toast({
         title: "Daily Limit Exceeded",
@@ -155,12 +99,18 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
     setIsProcessing(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Prepare destination details
+      const destinationDetails = withdrawMethod === 'mpesa' || withdrawMethod === 'airtel'
+        ? { phoneNumber }
+        : { bankName: bankDetails.bankName, accountNumber: bankDetails.accountNumber, branch: bankDetails.branch };
 
-      toast({
-        title: "Withdrawal Initiated! 💰",
-        description: `KES ${amount.toLocaleString()} withdrawal is being processed`,
+      // Create withdrawal request
+      await createWithdrawal({
+        walletId: selectedWallet.id,
+        amount,
+        method: withdrawMethod,
+        destinationDetails,
+        currency: 'KES'
       });
 
       // Reset form
@@ -171,11 +121,7 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
       setBankDetails({ accountNumber: '', bankName: '', branch: '' });
       setIsDialogOpen(false);
     } catch (error) {
-      toast({
-        title: "Withdrawal Failed",
-        description: "Please try again or contact support",
-        variant: "destructive",
-      });
+      // Error handling is done in the hook
     } finally {
       setIsProcessing(false);
     }
@@ -285,14 +231,14 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
               <div className="flex justify-between text-sm">
                 <span>Daily Limit</span>
                 <span>
-                  <CurrencyDisplay amount={withdrawalLimits.daily.used} showToggle={false} /> / 
-                  <CurrencyDisplay amount={withdrawalLimits.daily.limit} showToggle={false} />
+                  <CurrencyDisplay amount={limits.daily.used} showToggle={false} /> / 
+                  <CurrencyDisplay amount={limits.daily.limit} showToggle={false} />
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-blue-600 h-2 rounded-full" 
-                  style={{ width: `${(withdrawalLimits.daily.used / withdrawalLimits.daily.limit) * 100}%` }}
+                  style={{ width: `${(limits.daily.used / limits.daily.limit) * 100}%` }}
                 ></div>
               </div>
             </div>
@@ -301,14 +247,14 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
               <div className="flex justify-between text-sm">
                 <span>Weekly Limit</span>
                 <span>
-                  <CurrencyDisplay amount={withdrawalLimits.weekly.used} showToggle={false} /> / 
-                  <CurrencyDisplay amount={withdrawalLimits.weekly.limit} showToggle={false} />
+                  <CurrencyDisplay amount={limits.weekly.used} showToggle={false} /> / 
+                  <CurrencyDisplay amount={limits.weekly.limit} showToggle={false} />
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-green-600 h-2 rounded-full" 
-                  style={{ width: `${(withdrawalLimits.weekly.used / withdrawalLimits.weekly.limit) * 100}%` }}
+                  style={{ width: `${(limits.weekly.used / limits.weekly.limit) * 100}%` }}
                 ></div>
               </div>
             </div>
@@ -317,14 +263,14 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
               <div className="flex justify-between text-sm">
                 <span>Monthly Limit</span>
                 <span>
-                  <CurrencyDisplay amount={withdrawalLimits.monthly.used} showToggle={false} /> / 
-                  <CurrencyDisplay amount={withdrawalLimits.monthly.limit} showToggle={false} />
+                  <CurrencyDisplay amount={limits.monthly.used} showToggle={false} /> / 
+                  <CurrencyDisplay amount={limits.monthly.limit} showToggle={false} />
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-purple-600 h-2 rounded-full" 
-                  style={{ width: `${(withdrawalLimits.monthly.used / withdrawalLimits.monthly.limit) * 100}%` }}
+                  style={{ width: `${(limits.monthly.used / limits.monthly.limit) * 100}%` }}
                 ></div>
               </div>
             </div>
@@ -447,12 +393,12 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Transaction fee:</span>
-                      <CurrencyDisplay amount={calculateFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} showToggle={false} />
+                      <CurrencyDisplay amount={calcFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} showToggle={false} />
                     </div>
                     <div className="flex justify-between text-sm font-medium border-t border-blue-300 pt-2 mt-2">
                       <span>You will receive:</span>
                       <CurrencyDisplay 
-                        amount={(parseFloat(withdrawAmount) || 0) - calculateFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} 
+                        amount={(parseFloat(withdrawAmount) || 0) - calcFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} 
                         showToggle={false} 
                       />
                     </div>
@@ -500,7 +446,7 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
                         </div>
                         <div className="flex justify-between">
                           <span>Fee:</span>
-                          <CurrencyDisplay amount={calculateFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} showToggle={false} />
+                          <CurrencyDisplay amount={calcFee(parseFloat(withdrawAmount) || 0, withdrawMethod)} showToggle={false} />
                         </div>
                         <div className="flex justify-between">
                           <span>Method:</span>
@@ -547,27 +493,40 @@ const WithdrawalsPanel: React.FC<WithdrawalsPanelProps> = ({ userWallets, userRo
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentWithdrawals.map((withdrawal) => (
-                <div key={withdrawal.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                      {getMethodIcon(withdrawal.method)}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CurrencyDisplay amount={withdrawal.amount} showToggle={false} className="font-medium" />
-                        {getStatusBadge(withdrawal.status)}
+              {withdrawals.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No withdrawal history yet</p>
+              ) : (
+                withdrawals.slice(0, 10).map((withdrawal) => (
+                  <div key={withdrawal.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                        {getMethodIcon(withdrawal.withdrawal_method)}
                       </div>
-                      <p className="text-sm text-muted-foreground">{withdrawal.destination}</p>
-                      <p className="text-xs text-muted-foreground">{withdrawal.date}</p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CurrencyDisplay amount={withdrawal.amount} showToggle={false} className="font-medium" />
+                          {getStatusBadge(withdrawal.status)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {withdrawal.withdrawal_method === 'mpesa' || withdrawal.withdrawal_method === 'airtel'
+                            ? withdrawal.destination_details?.phoneNumber
+                            : `${withdrawal.destination_details?.bankName} - ${withdrawal.destination_details?.accountNumber}`
+                          }
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(withdrawal.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">
+                        Fee: <CurrencyDisplay amount={withdrawal.fee_amount} showToggle={false} />
+                      </p>
+                      <p className="text-xs text-muted-foreground">Ref: {withdrawal.id.slice(0, 8)}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Fee: <CurrencyDisplay amount={withdrawal.fee} showToggle={false} /></p>
-                    <p className="text-xs text-muted-foreground">Ref: {withdrawal.reference}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
