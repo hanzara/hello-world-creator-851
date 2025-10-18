@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Smartphone, CreditCard } from 'lucide-react';
+import { Loader2, Smartphone, CreditCard, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePaystackIntegration } from '@/hooks/usePaystackIntegration';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LinkAccountModal } from './LinkAccountModal';
+import { LinkedAccountsManager } from './LinkedAccountsManager';
 
 interface AddMoneyModalProps {
   isOpen: boolean;
@@ -29,6 +32,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, o
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [showLinkAccountModal, setShowLinkAccountModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,93 +106,133 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, o
   const isLoading = isProcessingPaystack;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Add Money to Wallet</DialogTitle>
-          <DialogDescription>
-            Add funds using M-Pesa, Airtel Money, cards, bank transfer, or USSD via Paystack.
-            All payments are processed instantly and securely.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Add Money to Wallet</DialogTitle>
+            <DialogDescription>
+              Choose your payment method or manage your linked accounts
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs defaultValue="pay" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="pay">Make Payment</TabsTrigger>
+              <TabsTrigger value="linked">Linked Accounts</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pay" className="space-y-4 mt-4">
         
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount (KES)</Label>
-            <Input
-              id="amount"
-              type="number"
-              placeholder="Enter amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              min="1"
-              max="100000"
-              step="1"
-              required
-            />
-          </div>
-
-          <div className="space-y-3">
-            <Label>Select Payment Method</Label>
-            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-              {paymentMethods.map((method) => {
-                const Icon = method.icon;
-                return (
-                  <Card key={method.id} className={`cursor-pointer transition-colors ${paymentMethod === method.id ? 'border-primary bg-primary/5' : ''}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <RadioGroupItem value={method.id} id={method.id} />
-                        <Icon className="h-6 w-6 text-primary" />
-                        <div className="flex-1">
-                          <label htmlFor={method.id} className="font-medium cursor-pointer">
-                            {method.name}
-                          </label>
-                          <p className="text-xs text-muted-foreground">{method.description}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </RadioGroup>
-          </div>
-
-          {(paymentMethod === 'mobile_money' || paymentMethod === 'airtel_money') && (
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
+              <Label htmlFor="amount">Amount (KES)</Label>
               <Input
-                id="phone"
-                type="tel"
-                placeholder="2547XXXXXXXX"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+                id="amount"
+                type="number"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="1"
+                max="100000"
+                step="1"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                You'll receive a payment prompt to confirm the transaction
-              </p>
             </div>
-          )}
 
-          {paymentMethod === 'card' && (
-            <div className="bg-muted/50 rounded-lg p-3">
-              <p className="text-sm text-muted-foreground">
-                💳 You'll be redirected to enter your card details securely on Paystack
-              </p>
+            <div className="space-y-3">
+              <Label>Select Payment Method</Label>
+              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                {paymentMethods.map((method) => {
+                  const Icon = method.icon;
+                  return (
+                    <Card key={method.id} className={`cursor-pointer transition-colors ${paymentMethod === method.id ? 'border-primary bg-primary/5' : ''}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value={method.id} id={method.id} />
+                          <Icon className="h-6 w-6 text-primary" />
+                          <div className="flex-1">
+                            <label htmlFor={method.id} className="font-medium cursor-pointer">
+                              {method.name}
+                            </label>
+                            <p className="text-xs text-muted-foreground">{method.description}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </RadioGroup>
             </div>
-          )}
 
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading} className="flex-1">
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Processing...' : 'Add Money'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {(paymentMethod === 'mobile_money' || paymentMethod === 'airtel_money') && (
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="2547XXXXXXXX"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  You'll receive a payment prompt to confirm the transaction
+                </p>
+              </div>
+            )}
+
+            {paymentMethod === 'card' && (
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm text-muted-foreground">
+                  💳 You'll be redirected to enter your card details securely on Paystack
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading} className="flex-1">
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? 'Processing...' : 'Add Money'}
+              </Button>
+            </div>
+          </form>
+          </TabsContent>
+
+          <TabsContent value="linked" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">Your Linked Accounts</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Manage your connected payment methods
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLinkAccountModal(true)}
+                  className="gap-2"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Link New
+                </Button>
+              </div>
+
+              <LinkedAccountsManager />
+            </div>
+          </TabsContent>
+        </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <LinkAccountModal
+        isOpen={showLinkAccountModal}
+        onClose={() => setShowLinkAccountModal(false)}
+      />
+    </>
   );
 };

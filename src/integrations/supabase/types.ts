@@ -2802,6 +2802,57 @@ export type Database = {
           },
         ]
       }
+      linked_accounts: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          account_type: string
+          authorization_code: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_primary: boolean | null
+          last_used_at: string | null
+          metadata: Json | null
+          phone_number: string | null
+          provider: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type: string
+          authorization_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          phone_number?: string | null
+          provider: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string
+          authorization_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          phone_number?: string | null
+          provider?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       live_competition_players: {
         Row: {
           competition_id: string | null
