@@ -8475,6 +8475,10 @@ export type Database = {
         Args: { chama_id_to_check: string }
         Returns: boolean
       }
+      is_paid_chama_member: {
+        Args: { p_chama_id: string }
+        Returns: boolean
+      }
       make_chama_contribution: {
         Args: {
           p_amount: number

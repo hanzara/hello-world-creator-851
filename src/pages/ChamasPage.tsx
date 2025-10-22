@@ -30,10 +30,8 @@ const ChamasPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [chamaToDelete, setChamaToDelete] = useState<any>(null);
 
-  // Filter to only show Aqua/Acqua Avengers (case-insensitive)
-  const chamas = allChamas?.filter((chama: any) =>
-    /a(c)?qua avengers/i.test((chama?.name || '').trim())
-  );
+  // Show all user's chamas
+  const chamas = allChamas;
 
   const deleteChamaMutation = useMutation({
     mutationFn: async (chamaId: string) => {
